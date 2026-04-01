@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloud Chat · AWS</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --glass-bg: rgba(255,255,255,0.08);
+    --glass-border: rgba(255,255,255,0.15);
+    --accent: #7c6ef5;
+    --sent-bg: linear-gradient(135deg, #7c6ef5, #5b51e8);
+    --recv-bg: rgba(255,255,255,0.1);
+    --text-primary: #f0eeff;
+    --text-secondary: rgba(240,238,255,0.55);
+    --sidebar-w: 260px;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #0d0b1e;
+    color: var(--text-primary);
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 10%, rgba(124,110,245,0.25) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 80%, rgba(79,209,197,0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 40% at 50% 50%, rgba(91,81,232,0.12) 0%, transparent 60%);
+    z-index: 0;
+    animation: bgPulse 8s ease-in-out infinite alternate;
+  }
+
+  @keyframes bgPulse {
+    0%   { opacity: 0.8; transform: scale(1); }
+    100% { opacity: 1;   transform: scale(1.05); }
+  }
+
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.3;
+    z-index: 0;
+    animation: orbFloat linear infinite;
+  }
+  .orb1 { width: 300px; height: 300px; background: #7c6ef5; top: -80px; left: -60px; animation-duration: 18s; }
+  .orb2 { width: 220px; height: 220px; background: #4fd1c5; bottom: -60px; right: 80px; animation-duration: 14s; animation-direction: alternate; }
+  .orb3 { width: 160px; height: 160px; background: #f472b6; top: 40%; left: 40%; animation-duration: 22s; }
+
+  @keyframes orbFloat {
+    0%   { transform: translate(0, 0) scale(1); }
+    33%  { transform: translate(30px, -20px) scale(1.05); }
+    66%  { transform: translate(-20px, 30px) scale(0.95); }
+    100% { transform: translate(0, 0) scale(1); }
+  }
+
+  .sidebar {
+    width: var(--sidebar-w);
+    position: relative;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    padding: 28px 20px;
+    background: rgba(255,255,255,0.05);
+    border-right: 1px solid var(--glass-border);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    gap: 24px;
+    flex-shrink: 0;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #7c6ef5, #4fd1c5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .logo-text {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #c4beff, #4fd1c5);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 40px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    font-size: 13px;
+    color: var(--text-secondary);
+    width: fit-content;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f87171;
+    transition: background 0.4s;
+    animation: pulse-red 2s infinite;
+  }
+  .status-dot.online {
+    background: #4ade80;
+    animation: pulse-green 2s infinite;
+  }
+
+  @keyframes pulse-red {
+    0%   { box-shadow: 0 0 0 0 rgba(248,113,113,0.4); }
+    70%  { box-shadow: 0 0 0 6px rgba(248,113,113,0); }
+    100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); }
+  }
+  @keyframes pulse-green {
+    0%   { box-shadow: 0 0 0 0 rgba(74,222,128,0.4); }
+    70%  { box-shadow: 0 0 0 6px rgba(74,222,128,0); }
+    100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--glass-border);
+  }
+
+  .sidebar-label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-weight: 500;
+    margin-bottom: 10px;
+  }
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .stat-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #c4beff, #4fd1c5);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .stat-key {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .infra-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .infra-item {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .infra-icon {
+    font-size: 16px;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    font-size: 11px;
+    color: rgba(240,238,255,0.3);
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 10;
+    overflow: hidden;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 28px;
+    border-bottom: 1px solid var(--glass-border);
+    background: rgba(255,255,255,0.04);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
+  .header-left h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 20px;
+    font-weight: 600;
+  }
+
+  .header-left p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .header-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #7c6ef5, #4fd1c5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'Syne', sans-serif;
+  }
+
+  .chat-box {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 28px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    scroll-behavior: smooth;
+  }
+
+  .chat-box::-webkit-scrollbar { width: 4px; }
+  .chat-box::-webkit-scrollbar-track { background: transparent; }
+  .chat-box::-webkit-scrollbar-thumb { background: rgba(124,110,245,0.3); border-radius: 4px; }
+
+  .message {
+    max-width: 68%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    font-size: 14.5px;
+    line-height: 1.55;
+    animation: msgIn 0.35s cubic-bezier(0.34,1.56,0.64,1) both;
+  }
+
+  @keyframes msgIn {
+    0%   { opacity: 0; transform: translateY(18px) scale(0.95); }
+    100% { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .message.sent {
+    align-self: flex-end;
+    background: var(--sent-bg);
+    color: #fff;
+    border-bottom-right-radius: 5px;
+    box-shadow: 0 4px 20px rgba(124,110,245,0.4);
+  }
+
+  .message.received {
+    align-self: flex-start;
+    background: var(--recv-bg);
+    border: 1px solid var(--glass-border);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    color: var(--text-primary);
+    border-bottom-left-radius: 5px;
+  }
+
+  .msg-time {
+    font-size: 10px;
+    opacity: 0.5;
+    margin-top: 4px;
+    text-align: right;
+  }
+
+  #typing {
+    align-self: flex-start;
+    background: var(--recv-bg);
+    border: 1px solid var(--glass-border);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-radius: 18px;
+    border-bottom-left-radius: 5px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    animation: msgIn 0.3s ease both;
+  }
+
+  #typing span {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: bounce 1.2s infinite;
+  }
+  #typing span:nth-child(2) { animation-delay: 0.15s; background: #7ec8c8; }
+  #typing span:nth-child(3) { animation-delay: 0.30s; background: #4fd1c5; }
+
+  @keyframes bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+    40%           { transform: translateY(-6px); opacity: 1; }
+  }
+
+  .input-area {
+    padding: 16px 28px 24px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    background: rgba(13,11,30,0.6);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .input-wrap {
+    flex: 1;
+  }
+
+  #msg {
+    width: 100%;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 13px 18px;
+    color: var(--text-primary);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    outline: none;
+    transition: border 0.25s, background 0.25s;
+  }
+  #msg::placeholder { color: rgba(240,238,255,0.3); }
+  #msg:focus {
+    border-color: rgba(124,110,245,0.6);
+    background: rgba(255,255,255,0.1);
+  }
+
+  .send-btn {
+    width: 46px;
+    height: 46px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #7c6ef5, #5b51e8);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 16px rgba(124,110,245,0.45);
+    flex-shrink: 0;
+  }
+  .send-btn:hover  { transform: scale(1.06); box-shadow: 0 6px 24px rgba(124,110,245,0.6); }
+  .send-btn:active { transform: scale(0.96); }
+  .send-btn svg { width: 20px; height: 20px; fill: #fff; }
+</style>
+</head>
+<body>
+
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
+<div class="orb orb3"></div>
+
+<div class="sidebar">
+  <div class="logo">
+    <div class="logo-icon">☁</div>
+    <span class="logo-text">Cloud Chat</span>
+  </div>
+
+  <div class="status-pill">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="status">Connecting...</span>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div>
+    <div class="sidebar-label">Session Stats</div>
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-val" id="msgCount">0</div>
+        <div class="stat-key">Messages</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="uptime">0s</div>
+        <div class="stat-key">Uptime</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar-divider"></div>
+
+  <div>
+    <div class="sidebar-label">Infrastructure</div>
+    <div class="infra-list">
+      <div class="infra-item">
+        <span class="infra-icon">⚡</span> AWS Lambda
+      </div>
+      <div class="infra-item">
+        <span class="infra-icon">🗄</span> DynamoDB
+      </div>
+      <div class="infra-item">
+        <span class="infra-icon">🔌</span> API Gateway WS
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar-footer">Cloud Chat · Serverless</div>
+</div>
+
+<div class="main">
+  <div class="header">
+    <div class="header-left">
+      <h1>Real-Time Chat</h1>
+      <p id="headerSub">Initializing WebSocket connection...</p>
+    </div>
+    <div class="header-avatar">AI</div>
+  </div>
+
+  <div id="chat" class="chat-box"></div>
+
+  <div class="input-area">
+    <div class="input-wrap">
+      <input id="msg" placeholder="Type a message..." autocomplete="off" />
+    </div>
+    <button class="send-btn" onclick="send()" title="Send">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+  var socket = new WebSocket("wss://desd07jxq2.execute-api.ap-south-1.amazonaws.com/production");
+  var lastSentMessage = "";
+  var msgCount = 0;
+  var startTime = Date.now();
+
+  setInterval(function() {
+    var s = Math.floor((Date.now() - startTime) / 1000);
+    var m = Math.floor(s / 60);
+    document.getElementById("uptime").innerText = m > 0 ? m + "m" : s + "s";
+  }, 1000);
+
+  function setStatus(connected) {
+    var dot   = document.getElementById("statusDot");
+    var label = document.getElementById("status");
+    var sub   = document.getElementById("headerSub");
+    if (connected) {
+      dot.classList.add("online");
+      label.innerText = "Connected";
+      sub.innerText   = "WebSocket active";
+    } else {
+      dot.classList.remove("online");
+      label.innerText = "Disconnected";
+      sub.innerText   = "WebSocket closed";
+    }
+  }
+
+  socket.onopen  = function() { setStatus(true); };
+  socket.onclose = function() { setStatus(false); };
+
+  socket.onmessage = function(event) {
+    var data = JSON.parse(event.data);
+    if (data.message === lastSentMessage) { return; }
+    addMessage(data.message, "received");
+  };
+
+  function send() {
+    var input = document.getElementById("msg");
+    var msg   = input.value.trim();
+    if (!msg) { return; }
+
+    lastSentMessage = msg;
+    addMessage(msg, "sent");
+    socket.send(JSON.stringify({ action: "sendMessage", message: msg }));
+    input.value = "";
+    showTyping();
+
+    setTimeout(function() {
+      removeTyping();
+      addMessage(getBotReply(msg), "received");
+    }, 1200);
+  }
+
+  function addMessage(message, type) {
+    var chat    = document.getElementById("chat");
+    var wrapper = document.createElement("div");
+    wrapper.classList.add("message", type);
+
+    var text = document.createElement("div");
+    text.innerText = message;
+
+    var time = document.createElement("div");
+    time.classList.add("msg-time");
+    time.innerText = new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+
+    wrapper.appendChild(text);
+    wrapper.appendChild(time);
+    chat.appendChild(wrapper);
+    chat.scrollTop = chat.scrollHeight;
+
+    msgCount++;
+    document.getElementById("msgCount").innerText = msgCount;
+  }
+
+  function showTyping() {
+    var chat   = document.getElementById("chat");
+    var typing = document.createElement("div");
+    typing.id  = "typing";
+    typing.innerHTML = "<span></span><span></span><span></span>";
+    chat.appendChild(typing);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  function removeTyping() {
+    var el = document.getElementById("typing");
+    if (el) { el.remove(); }
+  }
+
+  document.getElementById("msg").addEventListener("keydown", function(e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  function getBotReply(msg) {
+    msg = msg.toLowerCase();
+
+    if (msg.includes("hello") || msg.includes("hi") || msg.includes("hey"))
+      return "Hey there! 👋 Great to see you! How can I help you today?";
+    if (msg.includes("good morning"))
+      return "Good morning! ☀️ Hope you're having a great day!";
+    if (msg.includes("good night"))
+      return "Good night! 🌙 Sweet dreams! Come back anytime.";
+    if (msg.includes("good evening"))
+      return "Good evening! 🌆 How's your day been?";
+    if (msg.includes("who are you") || msg.includes("what are you"))
+      return "I'm Cloud Bot 🤖 — a serverless AI assistant built on AWS. Ask me anything!";
+    if (msg.includes("your name") || (msg.includes("name") && !msg.includes("dynamo")))
+      return "My name is Cloud Bot 🤖 Running on AWS Lambda, DynamoDB & API Gateway!";
+    if (msg.includes("how are you") || msg.includes("how r u"))
+      return "Running smooth on AWS Lambda 😎 All systems green and latency is low!";
+    if (msg.includes("are you real") || msg.includes("are you human") || msg.includes("are you a bot"))
+      return "I'm a bot, but a smart one 😄 Powered by serverless AWS infrastructure!";
+    if (msg.includes("age") || msg.includes("how old"))
+      return "I was born in the cloud ☁️ — age is just a deployment timestamp to me!";
+    if (msg.includes("thank") || msg.includes("thx"))
+      return "You're welcome! 😊 Always happy to help!";
+    if (msg.includes("love you") || msg.includes("i love"))
+      return "Aw, I love you too! ❤️ You're my favourite user!";
+    if (msg.includes("haha") || msg.includes("lol") || msg.includes("funny"))
+      return "Ha! 😄 Glad I could make you smile!";
+    if (msg.includes("bored"))
+      return "Let's fix that! 🎉 Ask me about AWS, tech, or just chat with me!";
+    if (msg.includes("help"))
+      return "I'm here to help! 🙌 Ask me about AWS, this project, tech, weather, jokes — anything!";
+    if (msg.includes("bye") || msg.includes("goodbye") || msg.includes("see you"))
+      return "Goodbye! 👋 Stay cloud-native and come back soon!";
+    if (msg.includes("okay") || msg.includes("alright"))
+      return "Great! 👍 Let me know if there's anything else I can do for you!";
+    if (msg.includes("aws"))
+      return "AWS (Amazon Web Services) is the world's leading cloud platform ☁️ — this app uses Lambda, DynamoDB & API Gateway!";
+    if (msg.includes("lambda"))
+      return "AWS Lambda runs your code without managing servers 🚀 Pay only when your function executes — true serverless!";
+    if (msg.includes("dynamo") || msg.includes("dynamodb"))
+      return "DynamoDB is a fully managed NoSQL database ⚡ It stores our WebSocket connection IDs for real-time messaging!";
+    if (msg.includes("api gateway"))
+      return "API Gateway manages our WebSocket connections 🔌 It routes messages between clients and Lambda functions!";
+    if (msg.includes("s3"))
+      return "Amazon S3 is object storage for the cloud 🗂️ Perfect for hosting static files, images, backups and more!";
+    if (msg.includes("ec2"))
+      return "EC2 gives you virtual servers in the cloud 🖥️ Unlike Lambda, you manage the server yourself!";
+    if (msg.includes("serverless"))
+      return "Serverless means no server management! ⚡ AWS handles scaling, patching & availability — you just write code!";
+    if (msg.includes("cloud"))
+      return "The cloud is the future ☁️ — scalable, reliable, and pay-as-you-go infrastructure available anywhere!";
+    if (msg.includes("region"))
+      return "AWS has regions all around the world 🌍 — choose the one closest to your users for the lowest latency!";
+    if (msg.includes("cost") || msg.includes("price") || msg.includes("pricing"))
+      return "Serverless is super cost-efficient 💸 Lambda charges per millisecond, DynamoDB per read/write!";
+    if (msg.includes("javascript"))
+      return "JavaScript powers the frontend of this app 💻 Combined with WebSockets for real-time messaging!";
+    if (msg.includes("html"))
+      return "HTML structures this chat UI 🏗️ Combined with CSS glassmorphism for that sleek look!";
+    if (msg.includes("css"))
+      return "CSS with glassmorphism effects gives this app its beautiful dark UI ✨ Blur + transparency = magic!";
+    if (msg.includes("websocket") || msg.includes("real time") || msg.includes("realtime"))
+      return "WebSockets keep a persistent connection open so messages flow instantly ⚡ No polling needed!";
+    if (msg.includes("database"))
+      return "We use DynamoDB as our database 🗄️ It stores connection IDs so Lambda knows who to send messages to!";
+    if (msg.includes("json"))
+      return "JSON is the language of the web 📦 All messages between this client and Lambda are sent as JSON!";
+    if (msg.includes("api"))
+      return "APIs are the backbone of modern apps 🔗 We use AWS API Gateway to expose our WebSocket endpoint!";
+    if (msg.includes("joke"))
+      return "Why do programmers prefer dark mode? Because light attracts bugs! 🐛😄";
+    if (msg.includes("fact"))
+      return "Fun fact: AWS Lambda can scale to 1000 concurrent executions by default ⚡ That's serious power!";
+    if (msg.includes("time"))
+      return "The current time is " + new Date().toLocaleTimeString() + " 🕐";
+    if (msg.includes("date") || msg.includes("today"))
+      return "Today is " + new Date().toLocaleDateString("en-US", {weekday:"long", year:"numeric", month:"long", day:"numeric"}) + " 📅";
+    if (msg.includes("weather"))
+      return "I don't have weather data yet 🌤️ But connecting to a weather API would be a cool Lambda function!";
+    if (msg.includes("capital of india") || msg.includes("india"))
+      return "The capital of India is New Delhi 🇮🇳";
+    if (msg.includes("who made you") || msg.includes("who created you") || msg.includes("who built you"))
+      return "I was built by an awesome developer using AWS Lambda, DynamoDB & API Gateway 🚀 Serverless magic!";
+    if (msg.includes("project"))
+      return "This project is a real-time serverless chat app 🚀 Built with AWS API Gateway WebSockets, Lambda & DynamoDB!";
+    if (msg.includes("language") || msg.includes("programming"))
+      return "This app uses JavaScript on the frontend and Node.js inside AWS Lambda on the backend 🟨";
+    if (msg.includes("color") || msg.includes("colour") || msg.includes("design"))
+      return "The UI uses a glassmorphism design 🎨 Dark background + frosted glass panels + purple-teal gradients!";
+    if (msg.includes("music") || msg.includes("song"))
+      return "I can't play music yet 🎵 But connecting me to a Spotify Lambda integration would be epic!";
+    if (msg.includes("movie") || msg.includes("film"))
+      return "I'd recommend 'The Social Network' 🎬 — a great film about building something from scratch!";
+    if (msg.includes("food") || msg.includes("hungry") || msg.includes("eat"))
+      return "I run on electricity, not food 😄⚡ But I'd imagine cloud servers taste like blue raspberry!";
+    if (msg.includes("game") || msg.includes("play"))
+      return "I'd love to play a game! 🎮 Ask me trivia questions — I'll do my best to answer!";
+    if (msg.includes("math") || msg.includes("calculate"))
+      return "I can do basic math! Try typing something like '2 + 2' and I'll work on supporting it 🧮";
+    if (msg.includes("future") || msg.includes("plan"))
+      return "Future plans include AI replies, chat history, user auth & more AWS integrations 🚀 Stay tuned!";
+
+    return "Hmm, I'm still learning 🤔 Try asking me about AWS, this project, tech, jokes, or just say hi!";
+  }
+
+  setTimeout(function() {
+    addMessage("Hello! I'm your Cloud Chat Bot powered by AWS 🚀 Ask me anything!", "received");
+  }, 800);
+</script>
+</body>
+</html>
